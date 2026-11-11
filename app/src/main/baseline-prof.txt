@@ -1,0 +1,6 @@
+# Baseline profile ScanFast (ditulis manual, belum hasil rekaman perangkat).
+# Semua kelas dan method kode app dikompilasi AOT (H=hot, S=startup, P=post-startup).
+# Kode library (Compose, activity, lifecycle, navigation, CameraX) sudah membawa baseline profile
+# sendiri di AAR-nya dan digabung otomatis oleh AGP; R8 menulis ulang nama sesuai obfuscation.
+HSPLcom/blitar/scanfast/**;->**(**)**
+Lcom/blitar/scanfast/**;

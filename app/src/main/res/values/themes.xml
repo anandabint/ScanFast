@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.ScanFast" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Tema peluncuran: splash screen hitam dengan ikon beranimasi, lalu beralih ke Theme.ScanFast. -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#0A0A0A</item>
+        <!-- Ikon splash sistem sengaja kosong: animasi ikon dimainkan di Compose (IntroAnimation), seragam di semua ROM. -->
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="windowSplashScreenAnimationDuration">0</item>
+        <item name="postSplashScreenTheme">@style/Theme.ScanFast</item>
+    </style>
+</resources>
