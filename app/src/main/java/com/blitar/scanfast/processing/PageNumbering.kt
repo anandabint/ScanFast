@@ -33,11 +33,20 @@ class PageNumbering(private val output: PdfOutput) {
     fun shiftUp(start: Int, end: Int, numbers: Collection<Int>, newEnd: Int? = null) = atomic { undo ->
         for (n in numbers.sortedDescending()) step(undo, start, end, n, n + 1)
         if (newEnd != null && newEnd != end) moveFolder(undo, start, end, newEnd)
-    }
+    }.also { if (newEnd != null && newEnd != end) cleanup(start, end) }
 
     /** Perluas rentang (ganti nama folder) tanpa mengubah nomor. */
     fun extend(start: Int, end: Int, newEnd: Int) = atomic { undo ->
         if (newEnd != end) moveFolder(undo, start, end, newEnd)
+    }.also { if (newEnd != end) cleanup(start, end) }
+
+    /** Setelah pemindahan sukses: hapus folder lama kalau kosong. Di luar transaksi; gagal = diabaikan. */
+    private fun cleanup(start: Int, oldEnd: Int) {
+        try {
+            output.removeFolderIfEmpty(start, oldEnd)
+        } catch (e: Exception) {
+            Log.w(TAG, "Bersihkan folder lama gagal: ${e.message}")
+        }
     }
 
     private fun step(undo: MutableList<() -> Unit>, start: Int, end: Int, from: Int, to: Int): Boolean {

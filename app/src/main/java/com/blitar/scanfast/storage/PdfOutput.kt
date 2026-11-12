@@ -27,4 +27,11 @@ interface PdfOutput {
      * IOException dilempar. Mengembalikan jumlah file yang dipindah.
      */
     fun moveFolder(start: Int, oldEnd: Int, newEnd: Int): Int
+
+    /**
+     * Hapus folder sesi `AKL start-end` kalau sudah tidak berisi file apa pun. Folder yang masih ada
+     * isinya tidak disentuh. Mengembalikan true kalau folder dihapus. Tidak melempar exception:
+     * kegagalan hanya berarti folder kosong tertinggal.
+     */
+    fun removeFolderIfEmpty(start: Int, end: Int): Boolean
 }

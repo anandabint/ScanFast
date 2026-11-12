@@ -122,6 +122,32 @@ class MediaStoreOutput(context: Context) : PdfOutput {
         return moved.size
     }
 
+    override fun removeFolderIfEmpty(start: Int, end: Int): Boolean {
+        return try {
+            var count = 0
+            resolver.query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.RELATIVE_PATH}=?",
+                arrayOf(relativePath(start, end)),
+                null
+            )?.use { count = it.count }
+            if (count > 0) return false
+            // File.delete() pada direktori hanya berhasil kalau kosong, jadi file milik app lain
+            // (tak terlihat oleh query MediaStore) tetap aman.
+            val dir = java.io.File(
+                android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS),
+                "ScanFast/${folderName(start, end)}",
+            )
+            val removed = dir.isDirectory && dir.delete()
+            Log.d(TAG, "Folder kosong ${dir.path}: dihapus=$removed")
+            removed
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Bersihkan folder kosong gagal: ${e.message}")
+            false
+        }
+    }
+
     private fun setPending(uri: Uri, value: Int) {
         resolver.update(uri, ContentValues().apply {
             put(MediaStore.MediaColumns.IS_PENDING, value)

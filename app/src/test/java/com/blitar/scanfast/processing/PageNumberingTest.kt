@@ -47,6 +47,13 @@ class PageNumberingTest {
             return files.size
         }
 
+        /** Folder lama kosong setelah dipindah; folder yang masih dipakai ([end]) tidak boleh dihapus. */
+        override fun removeFolderIfEmpty(start: Int, end: Int): Boolean {
+            check(end != this.end) { "folder yang masih berisi tidak boleh dihapus: AKL $start-$end" }
+            log += "rmdir $end"
+            return true
+        }
+
         fun snapshot() = files.toSortedMap().toMap()
     }
 
@@ -90,7 +97,7 @@ class PageNumberingTest {
     fun shiftUp_renamesFromHighestToLowest_neverOverwrites() {
         val out = fake(1, 2, 3, 4, 5)
         PageNumbering(out).shiftUp(1, 5, listOf(3, 4, 5), newEnd = 6) // sisip di 3
-        assertEquals(listOf("5->6", "4->5", "3->4", "folder 5->6"), out.log)
+        assertEquals(listOf("5->6", "4->5", "3->4", "folder 5->6", "rmdir 5"), out.log)
         assertEquals(mapOf(1 to "isi-1", 2 to "isi-2", 4 to "isi-3", 5 to "isi-4", 6 to "isi-5"), out.snapshot())
         assertEquals(6, out.end)
     }
@@ -141,6 +148,38 @@ class PageNumberingTest {
         } catch (e: IOException) {
         }
         assertEquals(mapOf(1 to "isi-1", 3 to "isi-2", 4 to "isi-4"), out.snapshot())
+    }
+
+    @Test
+    fun shiftUp_andExtend_removeOldFolderOnlyAfterSuccess() {
+        val out = fake(1, 2, 3)
+        PageNumbering(out).shiftUp(1, 3, listOf(3), newEnd = 4)
+        assertEquals(listOf("3->4", "folder 3->4", "rmdir 3"), out.log)
+
+        val out2 = fake(1, 2, 3)
+        PageNumbering(out2).extend(1, 3, 6)
+        assertEquals(listOf("folder 3->6", "rmdir 3"), out2.log)
+    }
+
+    @Test
+    fun failedMove_doesNotRemoveAnyFolder() {
+        val out = fake(1, 2, 3)
+        out.failMoveFolder = true
+        try {
+            PageNumbering(out).extend(1, 3, 6)
+            fail("harus gagal")
+        } catch (e: IOException) {
+        }
+        assertTrue(out.log.none { it.startsWith("rmdir") })
+        assertEquals(3, out.end)
+    }
+
+    @Test
+    fun noFolderChange_noCleanup() {
+        val out = fake(1, 2, end = 3) // 3 kosong, jadi 2->3 sah
+        PageNumbering(out).shiftUp(1, 3, listOf(2), newEnd = null)
+        PageNumbering(out).extend(1, 3, 3)
+        assertTrue(out.log.none { it.startsWith("rmdir") || it.startsWith("folder") })
     }
 
     @Test
