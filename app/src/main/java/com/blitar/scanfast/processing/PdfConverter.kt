@@ -15,9 +15,9 @@ import java.util.Locale
 object PdfConverter {
     /** DPI untuk menghitung ukuran fisik halaman dari dimensi pixel. */
     private const val PAGE_DPI = 150f
-    private const val JPEG_QUALITY = 90
+    private const val JPEG_QUALITY = 92
 
-    /** Tulis [bitmap] (di-encode JPEG kualitas 90 satu kali) sebagai PDF ke [target]. */
+    /** Tulis [bitmap] (di-encode JPEG kualitas 92 satu kali) sebagai PDF ke [target]. */
     fun write(bitmap: Bitmap, target: File) {
         FileOutputStream(target).use { write(bitmap, it) }
     }

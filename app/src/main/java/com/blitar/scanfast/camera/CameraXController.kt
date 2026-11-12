@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Rect
+import android.os.SystemClock
 import android.util.Log
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -53,7 +54,7 @@ class CameraXController(private val context: Context) {
                 it.surfaceProvider = previewView.surfaceProvider
             }
             val capture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setFlashMode(ImageCapture.FLASH_MODE_OFF)
                 .build()
             try {
@@ -123,8 +124,10 @@ class CameraXController(private val context: Context) {
             onError(IllegalStateException("Kamera belum siap"))
             return
         }
+        val t0 = SystemClock.elapsedRealtime()
         capture.takePicture(captureExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
+                val t1 = SystemClock.elapsedRealtime()
                 val file = try {
                     image.use { it.saveAsResizedJpeg(TempPhotoStore.fileFor(context, fileName)) }
                 } catch (e: Exception) {
@@ -132,6 +135,12 @@ class CameraXController(private val context: Context) {
                     mainExecutor.execute { onError(e) }
                     return
                 }
+                val t2 = SystemClock.elapsedRealtime()
+                Log.i(
+                    "CaptureTiming",
+                    "take=${t1 - t0}ms save=${t2 - t1}ms total=${t2 - t0}ms bytes=${file.length()} " +
+                        "mode=${capture.captureMode} maxSide=$MAX_SIDE_PX q=$JPEG_QUALITY",
+                )
                 mainExecutor.execute {
                     shutterCount++
                     onSuccess(file.absolutePath)
@@ -180,7 +189,8 @@ class CameraXController(private val context: Context) {
 
     private companion object {
         const val TAG = "CameraXController"
-        const val MAX_SIDE_PX = 3000
-        const val JPEG_QUALITY = 90
+        const val MAX_SIDE_PX = 4000
+        /** File temp (cache) sebelum crop/enhance: tinggi untuk menekan kompresi ganda. */
+        const val JPEG_QUALITY = 96
     }
 }

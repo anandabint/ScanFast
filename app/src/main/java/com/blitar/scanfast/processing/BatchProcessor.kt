@@ -85,14 +85,31 @@ class BatchProcessor(
      * @throws IOException penyimpanan gagal
      */
     fun processSinglePhoto(photo: CapturedPhoto, quad: QuadPoints?, start: Int, end: Int): Uri {
+        val tStart = android.os.SystemClock.elapsedRealtime()
         val src = loader(photo.filePath)
+        val srcW = src.width
+        val srcH = src.height
         var cropped: Bitmap? = null
         var enhanced: Bitmap? = null
         try {
             val used = quad ?: ImageCropper.autoQuad(src)
             cropped = ImageCropper.warp(src, used)
             enhanced = ImageEnhancer.enhance(cropped)
-            val uri = output.savePdf(start, end, photo.number) { PdfConverter.write(enhanced, it) }
+            val tEnh = android.os.SystemClock.elapsedRealtime()
+            var pdfBytes = 0L
+            val uri = output.savePdf(start, end, photo.number) {
+                val counting = object : java.io.FilterOutputStream(it) {
+                    override fun write(b: Int) { out.write(b); pdfBytes++ }
+                    override fun write(b: ByteArray, off: Int, len: Int) { out.write(b, off, len); pdfBytes += len }
+                    override fun close() {}
+                }
+                PdfConverter.write(enhanced, counting)
+            }
+            Log.i(
+                TAG,
+                "BatchTiming no=${photo.number} src=${srcW}x$srcH page=${enhanced.width}x${enhanced.height} " +
+                    "prep=${tEnh - tStart}ms pdf=${android.os.SystemClock.elapsedRealtime() - tEnh}ms bytes=$pdfBytes",
+            )
             writeThumbnail(photo, enhanced)
             photo.autoQuad = when {
                 quad == null -> used
