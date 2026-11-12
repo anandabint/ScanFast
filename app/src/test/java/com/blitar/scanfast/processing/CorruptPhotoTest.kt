@@ -35,6 +35,10 @@ class CorruptPhotoTest {
         override fun delete(start: Int, end: Int, number: Int): Uri? = null
 
         override fun deleteAll(start: Int, end: Int): Int = 0
+
+        override fun rename(start: Int, end: Int, from: Int, to: Int): Boolean = false
+
+        override fun moveFolder(start: Int, oldEnd: Int, newEnd: Int): Int = 0
     }
 
     private fun randomBytesFile(name: String, size: Int = 4096): File =

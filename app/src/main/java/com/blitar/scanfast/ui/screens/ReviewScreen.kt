@@ -27,6 +27,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +72,7 @@ fun ReviewScreen(
     captureViewModel: CaptureViewModel,
     batchViewModel: BatchViewModel,
     onOpenEditor: (number: Int) -> Unit,
+    onAddPhoto: (number: Int) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -146,7 +149,27 @@ fun ReviewScreen(
 
     val failed = batchViewModel.result?.failedNumbers.orEmpty()
 
-    ScreenScaffold(title = "Review", modifier = modifier.fillMaxSize()) { innerPadding ->
+    // --- Tambah foto: pilih nomor (chip kosong / manual), sisip kalau bentrok ---
+    var showAdd by remember { mutableStateOf(false) }
+    var insertConfirm by remember { mutableStateOf<Int?>(null) }
+    var inserting by remember { mutableStateOf(false) }
+
+    ScreenScaffold(
+        title = "Review",
+        modifier = modifier.fillMaxSize(),
+        floatingActionButton = {
+            if (!pending && !applying && !inserting) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        haptics.tick()
+                        showAdd = true
+                    },
+                    // Di atas tombol Selesai (56dp + padding 24dp), di pojok kanan bawah.
+                    modifier = Modifier.padding(bottom = 88.dp),
+                ) { Text("+ Tambah foto") }
+            }
+        },
+    ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
             Text(
                 "${session.photos.size} foto. Ketuk untuk mengatur crop, tahan lalu geser untuk mengubah urutan.",
@@ -195,7 +218,7 @@ fun ReviewScreen(
                             },
                         )
                     },
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 72.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -287,6 +310,56 @@ fun ReviewScreen(
                 modifier = Modifier.fillMaxWidth().padding(24.dp).height(56.dp),
             ) { Text("Selesai", style = MaterialTheme.typography.titleMedium) }
         }
+    }
+
+    if (showAdd) {
+        AddPhotoDialog(
+            session = session,
+            onDismiss = { showAdd = false },
+            onPick = { n ->
+                showAdd = false
+                if (session.photoWithNumber(n) == null) onAddPhoto(n) else insertConfirm = n
+            },
+        )
+    }
+    insertConfirm?.let { n ->
+        AlertDialog(
+            onDismissRequest = { insertConfirm = null },
+            title = { Text("Nomor $n sudah dipakai") },
+            text = { Text("Nomor $n sudah dipakai. Sisipkan di sini? Semua nomor dari $n ke atas akan digeser naik 1.") },
+            dismissButton = { TextButton(onClick = { insertConfirm = null }) { Text("Batal") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    insertConfirm = null
+                    inserting = true
+                    scope.launch {
+                        try {
+                            batchViewModel.insertSlot(session, n)
+                            haptics.confirm()
+                            onAddPhoto(n)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: java.io.IOException) {
+                            haptics.reject()
+                            Toast.makeText(context, "Gagal menggeser nomor: ${e.message}", Toast.LENGTH_LONG).show()
+                        } catch (e: RuntimeException) {
+                            haptics.reject()
+                            Toast.makeText(context, "Gagal menggeser nomor: ${e.message}", Toast.LENGTH_LONG).show()
+                        } finally {
+                            inserting = false
+                        }
+                    }
+                }) { Text("Sisipkan") }
+            },
+        )
+    }
+    if (inserting) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            title = { Text("Menggeser nomor…") },
+            text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
+        )
     }
 
     if (applying) {
@@ -394,5 +467,71 @@ private fun BoxScope.Badge(text: String, bg: Color, fg: Color) {
             .fillMaxWidth()
             .background(bg)
             .padding(horizontal = 4.dp, vertical = 2.dp),
+    )
+}
+
+
+/** Pilih nomor halaman baru: chip nomor kosong (langsung pakai) atau input manual. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun AddPhotoDialog(
+    session: com.blitar.scanfast.model.CaptureSession,
+    onDismiss: () -> Unit,
+    onPick: (Int) -> Unit,
+) {
+    val empty = session.emptyNumbers()
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Tambah foto") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (empty.isNotEmpty()) {
+                    Text("Nomor yang kosong:", style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        empty.forEach { n ->
+                            androidx.compose.material3.AssistChip(
+                                onClick = { onPick(n) },
+                                label = { Text("$n") },
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        "Tidak ada nomor kosong di ${session.start}–${session.end}.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { v ->
+                        text = v.filter { it.isDigit() }.take(5)
+                        error = null
+                    },
+                    label = { Text("atau masukkan nomor lain") },
+                    singleLine = true,
+                    isError = error != null,
+                    supportingText = { error?.let { Text(it) } },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    ),
+                )
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } },
+        confirmButton = {
+            TextButton(onClick = {
+                val n = text.toIntOrNull()
+                when {
+                    n == null -> error = "Masukkan nomor"
+                    n < session.start -> error = "Nomor minimal ${session.start}"
+                    else -> onPick(n)
+                }
+            }) { Text("Lanjut") }
+        },
     )
 }

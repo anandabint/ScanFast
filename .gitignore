@@ -25,3 +25,4 @@ keystore.properties
 
 # APK rilis untuk dibagikan lewat GitHub
 !/release/ScanFast.apk
+.idea/

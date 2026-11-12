@@ -16,6 +16,7 @@ import androidx.camera.core.UseCaseGroup
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
@@ -35,6 +36,10 @@ class CameraXController(private val context: Context) {
 
     /** State torch; default ON tiap controller baru (tidak dipersist antar sesi). */
     var torchOn by mutableStateOf(true)
+        private set
+
+    /** Naik tiap capture berhasil; CameraPreviewLayer memakainya sebagai pemicu flash shutter. */
+    var shutterCount by mutableIntStateOf(0)
         private set
 
     private var camera: Camera? = null
@@ -127,7 +132,10 @@ class CameraXController(private val context: Context) {
                     mainExecutor.execute { onError(e) }
                     return
                 }
-                mainExecutor.execute { onSuccess(file.absolutePath) }
+                mainExecutor.execute {
+                    shutterCount++
+                    onSuccess(file.absolutePath)
+                }
             }
 
             override fun onError(exception: ImageCaptureException) {

@@ -13,4 +13,18 @@ interface PdfOutput {
 
     /** Hapus semua PDF milik app di folder sesi; mengembalikan jumlah yang terhapus. */
     fun deleteAll(start: Int, end: Int): Int
+
+    /**
+     * Ganti nama PDF [from] menjadi [to] di folder sesi. Mengembalikan false kalau PDF [from] tidak
+     * ada (mis. halaman yang gagal diproses). Melempar IOException kalau [to] sudah ada atau gagal;
+     * tidak pernah menimpa file lain.
+     */
+    fun rename(start: Int, end: Int, from: Int, to: Int): Boolean
+
+    /**
+     * Pindahkan semua PDF dari folder `AKL start-oldEnd` ke `AKL start-newEnd` (rentang diperluas).
+     * Semua-atau-tidak-sama-sekali: kalau gagal di tengah, yang sudah pindah dikembalikan lalu
+     * IOException dilempar. Mengembalikan jumlah file yang dipindah.
+     */
+    fun moveFolder(start: Int, oldEnd: Int, newEnd: Int): Int
 }

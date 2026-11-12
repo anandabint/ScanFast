@@ -35,6 +35,7 @@ import com.blitar.scanfast.model.BatchViewModel
 import com.blitar.scanfast.model.CaptureViewModel
 import com.blitar.scanfast.storage.TempPhotoStore
 import com.blitar.scanfast.ui.components.IntroAnimation
+import com.blitar.scanfast.ui.screens.AddPhotoScreen
 import com.blitar.scanfast.ui.screens.CaptureScreen
 import com.blitar.scanfast.ui.screens.CropEditorScreen
 import com.blitar.scanfast.ui.screens.ProcessingScreen
@@ -54,6 +55,8 @@ object Routes {
     fun cropEditor(number: Int) = "crop_editor/$number"
     const val RETAKE = "retake/{number}"
     fun retake(number: Int) = "retake/$number"
+    const val ADD_PHOTO = "add_photo/{number}"
+    fun addPhoto(number: Int) = "add_photo/$number"
     const val SUMMARY = "summary"
 }
 
@@ -144,6 +147,7 @@ class MainActivity : ComponentActivity() {
                             captureViewModel = captureViewModel,
                             batchViewModel = batchViewModel,
                             onOpenEditor = { navController.navigate(Routes.cropEditor(it)) },
+                            onAddPhoto = { navController.navigate(Routes.addPhoto(it)) },
                             onDone = {
                                 navController.navigate(Routes.SUMMARY) {
                                     popUpTo(Routes.REVIEW) { inclusive = true }
@@ -175,6 +179,19 @@ class MainActivity : ComponentActivity() {
                             onClose = { navController.popBackStack() },
                             // Berhasil: kembali ke Review (melewati editor di back stack).
                             onDone = { navController.popBackStack(Routes.REVIEW, inclusive = false) },
+                        )
+                    }
+                    composable(
+                        Routes.ADD_PHOTO,
+                        arguments = listOf(navArgument("number") { type = NavType.IntType })
+                    ) { entry ->
+                        AddPhotoScreen(
+                            number = entry.arguments!!.getInt("number"),
+                            captureViewModel = captureViewModel,
+                            batchViewModel = batchViewModel,
+                            volumeShutter = volumeShutter,
+                            onClose = { navController.popBackStack() },
+                            onDone = { navController.popBackStack() },
                         )
                     }
                     composable(Routes.SUMMARY) {

@@ -1,6 +1,7 @@
 package com.blitar.scanfast
 
 import com.blitar.scanfast.model.CaptureSession
+import com.blitar.scanfast.model.CapturedPhoto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -72,5 +73,32 @@ class CaptureSessionTest {
         s.photos.forEachIndexed { i, p -> p.number = s.start + i }
         assertEquals(listOf(1, 2, 3, 4, 5), s.photos.map { it.number })
         assertEquals(listOf("b.jpg", "c.jpg", "d.jpg", "e.jpg", "a.jpg"), s.photos.map { it.filePath })
+    }
+
+    @Test
+    fun emptyNumbers_listsSkippedAndDeleted() {
+        val s = CaptureSession(1, 6)
+        s.addPhoto("a"); s.skip(); s.addPhoto("c"); s.addPhoto("d")
+        s.removePhoto(s.photos.last()) // nomor 4 dihapus
+        assertEquals(listOf(2, 4, 5, 6), s.emptyNumbers())
+    }
+
+    @Test
+    fun insertPhoto_sortsByNumber_andExtendEndOnlyGrows() {
+        val s = CaptureSession(1, 3)
+        s.addPhoto("a"); s.skip(); s.addPhoto("c")
+        s.insertPhoto(CapturedPhoto(2, "b"))
+        assertEquals(listOf(1, 2, 3), s.photos.map { it.number })
+        s.extendEnd(5); s.extendEnd(4)
+        assertEquals(5, s.end)
+    }
+
+    @Test
+    fun sortByNumber_afterSwap_followsNumbers() {
+        val s = CaptureSession(1, 3)
+        s.addPhoto("a"); s.addPhoto("b"); s.addPhoto("c")
+        s.photos[0].number = 3; s.photos[2].number = 1
+        s.sortByNumber()
+        assertEquals(listOf("c", "b", "a"), s.photos.map { java.io.File(it.filePath).name })
     }
 }

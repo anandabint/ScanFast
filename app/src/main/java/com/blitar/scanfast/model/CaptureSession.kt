@@ -47,7 +47,11 @@ class CapturedPhoto(number: Int, filePath: String) {
 }
 
 /** State satu sesi capture: rentang nomor, nomor berjalan, dan path foto sementara. */
-class CaptureSession(val start: Int, val end: Int) {
+class CaptureSession(val start: Int, end: Int) {
+    /** Nomor akhir rentang; bertambah kalau halaman disisipkan atau nomor di luar rentang ditambahkan. */
+    var end by mutableIntStateOf(end)
+        private set
+
     var current by mutableIntStateOf(start)
         private set
     var photoCount by mutableIntStateOf(0)
@@ -94,6 +98,36 @@ class CaptureSession(val start: Int, val end: Int) {
     fun removePhoto(photo: CapturedPhoto) {
         _photos.remove(photo)
         photoCount = _photos.size
+    }
+
+    /** Foto dengan nomor [number], atau null kalau nomor itu kosong. */
+    fun photoWithNumber(number: Int): CapturedPhoto? = _photos.firstOrNull { it.number == number }
+
+    /** Nomor dalam [start]..[end] yang belum dipakai halaman manapun (hasil skip atau hapus). */
+    fun emptyNumbers(): List<Int> {
+        val used = _photos.mapTo(HashSet()) { it.number }
+        return (start..end).filter { it !in used }
+    }
+
+    /** Urutkan daftar menurut nomor (stabil), dipanggil setelah nomor berubah/foto ditambah. */
+    fun sortByNumber() {
+        val sorted = _photos.sortedBy { it.number }
+        if (sorted != _photos.toList()) {
+            _photos.clear()
+            _photos.addAll(sorted)
+        }
+    }
+
+    /** Tambahkan [photo] (sudah bernomor) lalu urutkan menurut nomor. */
+    fun insertPhoto(photo: CapturedPhoto) {
+        _photos.add(photo)
+        photoCount = _photos.size
+        sortByNumber()
+    }
+
+    /** Perluas rentang ke [newEnd] (hanya menaikkan). */
+    fun extendEnd(newEnd: Int) {
+        if (newEnd > end) end = newEnd
     }
 
     /** Hapus file foto sementara milik sesi ini. */

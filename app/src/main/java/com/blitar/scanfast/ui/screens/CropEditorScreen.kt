@@ -92,7 +92,7 @@ fun CropEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     val session = captureViewModel.currentSession()
-    val photo = remember(session, number) { session?.photos?.firstOrNull { it.number == number } }
+    val photo = remember(session, number) { session?.photoWithNumber(number) }
     if (session == null || photo == null) {
         LaunchedEffect(Unit) { onClose() }
         return
@@ -103,6 +103,66 @@ fun CropEditorScreen(
     val haptics = rememberHaptics()
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    var showNumberEdit by remember { mutableStateOf(false) }
+    var swapTarget by remember { mutableStateOf<com.blitar.scanfast.model.CapturedPhoto?>(null) }
+    val onEditNumber: () -> Unit = {
+        haptics.tick()
+        showNumberEdit = true
+    }
+
+    fun runNumberChange(block: suspend () -> Unit) {
+        deleting = true // memblokir aksi lain selama rename
+        scope.launch {
+            try {
+                block()
+                haptics.confirm()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: IOException) {
+                Log.e("CropEditor", "Ubah nomor gagal (I/O)", e)
+                haptics.reject()
+                Toast.makeText(context, "Gagal mengubah nomor: ${e.message}", Toast.LENGTH_LONG).show()
+            } catch (e: RuntimeException) {
+                Log.e("CropEditor", "Ubah nomor gagal", e)
+                haptics.reject()
+                Toast.makeText(context, "Gagal mengubah nomor: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                deleting = false
+            }
+        }
+    }
+    if (showNumberEdit) {
+        NumberEditDialog(
+            current = photo.number,
+            min = session.start,
+            max = session.end,
+            onDismiss = { showNumberEdit = false },
+            onConfirm = { n ->
+                showNumberEdit = false
+                val other = session.photoWithNumber(n)
+                when {
+                    n == photo.number -> {}
+                    other == null -> runNumberChange { batchViewModel.moveNumber(session, photo, n) }
+                    else -> swapTarget = other
+                }
+            },
+        )
+    }
+    swapTarget?.let { other ->
+        val n = other.number
+        AlertDialog(
+            onDismissRequest = { swapTarget = null },
+            title = { Text("Nomor $n sudah dipakai") },
+            text = { Text("Nomor $n sudah dipakai halaman lain. Tukar nomor dengan halaman itu?") },
+            dismissButton = { TextButton(onClick = { swapTarget = null }) { Text("Batal") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    swapTarget = null
+                    runNumberChange { batchViewModel.swapNumbers(session, photo, other) }
+                }) { Text("Tukar") }
+            },
+        )
+    }
 
     // Aksi "Foto ulang" dan "Hapus" SELALU ada di app bar, di semua state (memuat, rusak, siap).
     val topActions: @Composable RowScope.(Boolean) -> Unit = { busy ->
@@ -179,6 +239,7 @@ fun CropEditorScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                NumberChip(photo.number, onEditNumber, enabled = !deleting)
                 Text(
                     "File rusak, tidak bisa dibuka",
                     style = MaterialTheme.typography.titleLarge,
@@ -197,21 +258,23 @@ fun CropEditorScreen(
                 ) { Text("Kembali") }
             }
         }
-        is EditorState.Ready -> EditorBody(number, session, photo, s.data, batchViewModel, onClose, topActions, modifier)
+        is EditorState.Ready -> EditorBody(session, photo, s.data, batchViewModel, onClose, topActions, onEditNumber, deleting, modifier)
     }
 }
 
 @Composable
 private fun EditorBody(
-    number: Int,
     session: com.blitar.scanfast.model.CaptureSession,
     photo: CapturedPhoto,
     data: EditorData,
     batchViewModel: BatchViewModel,
     onClose: () -> Unit,
     topActions: @Composable RowScope.(Boolean) -> Unit,
+    onEditNumber: () -> Unit,
+    numberBusy: Boolean,
     modifier: Modifier,
 ) {
+    val number = photo.number // bisa berubah (edit nomor) tanpa menutup editor
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
@@ -229,15 +292,21 @@ private fun EditorBody(
         title = "Edit Crop",
         modifier = modifier.fillMaxSize(),
         onBack = if (saving) null else ({ haptics.tick(); onClose() }),
-        actions = { topActions(saving) },
+        actions = { topActions(saving || numberBusy) },
     ) { innerPadding ->
     Column(Modifier.fillMaxSize().padding(innerPadding)) {
-        Text(
-            "Halaman $number — seret sudut untuk mengatur crop",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-        )
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            NumberChip(number, onEditNumber, enabled = !saving && !numberBusy)
+            Text(
+                "Seret sudut untuk mengatur crop",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+            )
+        }
         Box(
             Modifier
                 .weight(1f)
@@ -447,4 +516,59 @@ private fun loadEditorData(photo: CapturedPhoto): EditorData? {
     val auto = photo.autoQuad ?: ImageCropper.autoQuad(bmp)
     val initial = photo.quad ?: auto
     return EditorData(bmp.asImageBitmap(), initial, auto)
+}
+
+
+/** Nomor halaman yang bisa diketuk untuk diubah. */
+@Composable
+private fun NumberChip(number: Int, onClick: () -> Unit, enabled: Boolean) {
+    androidx.compose.material3.AssistChip(
+        onClick = onClick,
+        enabled = enabled,
+        label = { Text("Halaman $number  ✎") },
+    )
+}
+
+/** Input nomor baru (angka dalam [min]..[max]). */
+@Composable
+private fun NumberEditDialog(
+    current: Int,
+    min: Int,
+    max: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    var text by remember { mutableStateOf(current.toString()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ubah nomor halaman") },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = text,
+                onValueChange = { v ->
+                    text = v.filter { it.isDigit() }.take(5)
+                    error = null
+                },
+                label = { Text("Nomor ($min–$max)") },
+                singleLine = true,
+                isError = error != null,
+                supportingText = { error?.let { Text(it) } },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                ),
+            )
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Batal") } },
+        confirmButton = {
+            TextButton(onClick = {
+                val n = text.toIntOrNull()
+                when {
+                    n == null -> error = "Masukkan nomor"
+                    n < min || n > max -> error = "Harus antara $min dan $max"
+                    else -> onConfirm(n)
+                }
+            }) { Text("Simpan") }
+        },
+    )
 }

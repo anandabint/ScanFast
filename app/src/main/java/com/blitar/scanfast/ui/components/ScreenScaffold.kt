@@ -26,6 +26,7 @@ fun ScreenScaffold(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
@@ -47,6 +48,7 @@ fun ScreenScaffold(
                 ),
             )
         },
+        floatingActionButton = floatingActionButton,
         content = content,
     )
 }

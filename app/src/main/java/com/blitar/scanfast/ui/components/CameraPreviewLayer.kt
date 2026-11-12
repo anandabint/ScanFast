@@ -39,6 +39,16 @@ fun CameraPreviewLayer(controller: CameraXController, modifier: Modifier = Modif
     var tapCount by remember { mutableIntStateOf(0) }
     val ring = remember { Animatable(1f) }
 
+    // Flash shutter: putih ±150 ms lalu memudar. Hanya digambar (tanpa pointer input) sehingga tidak
+    // memblokir tap/capture berikutnya; capture beruntun cukup memulai ulang animasinya.
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(controller.shutterCount) {
+        if (controller.shutterCount > 0) {
+            flash.snapTo(FLASH_PEAK)
+            flash.animateTo(0f, tween(FLASH_MS, easing = LinearEasing))
+        }
+    }
+
     LaunchedEffect(tapCount) {
         if (tapCount > 0) {
             ring.snapTo(0f)
@@ -77,7 +87,12 @@ fun CameraPreviewLayer(controller: CameraXController, modifier: Modifier = Modif
                 drawCircle(Color.White.copy(alpha = (1f - p) * 0.9f), 3.dp.toPx(), tapPos)
             }
         }
+        Canvas(Modifier.fillMaxSize()) {
+            if (flash.value > 0f) drawRect(Color.White.copy(alpha = flash.value))
+        }
     }
 }
 
 private const val RING_MS = 500
+private const val FLASH_MS = 150
+private const val FLASH_PEAK = 0.7f

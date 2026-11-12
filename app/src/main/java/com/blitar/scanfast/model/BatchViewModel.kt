@@ -10,6 +10,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.blitar.scanfast.processing.BatchProcessor
+import com.blitar.scanfast.processing.PageNumbering
+import com.blitar.scanfast.storage.MediaStoreOutput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -174,6 +176,97 @@ class BatchViewModel(app: Application) : AndroidViewModel(app) {
             if (oldThumb != null && oldThumb != photo.thumbPath) File(oldThumb).delete()
         }
         markRecovered(photo.number, uri)
+    }
+
+    /** Petakan nomor di daftar gagal mengikuti perubahan nomor ([mapping] lama → baru). */
+    private fun remapFailed(mapping: Map<Int, Int>) {
+        val r = result ?: return
+        if (r.failedNumbers.none { it in mapping }) return
+        result = r.copy(failedNumbers = r.failedNumbers.map { mapping[it] ?: it }.sorted())
+    }
+
+    /** Sinkronkan rentang di [result] dengan [session] setelah rentang diperluas. */
+    private fun syncRange(session: CaptureSession) {
+        val r = result ?: return
+        if (r.end == session.end) return
+        result = r.copy(
+            end = session.end,
+            relativePath = com.blitar.scanfast.storage.MediaStoreOutput.relativePath(session.start, session.end),
+        )
+    }
+
+    /** Ganti nomor [photo] ke [newNumber] yang BELUM dipakai: rename PDF + update model. */
+    suspend fun moveNumber(session: CaptureSession, photo: CapturedPhoto, newNumber: Int) {
+        val old = photo.number
+        require(session.photoWithNumber(newNumber) == null) { "Nomor $newNumber sudah dipakai" }
+        withContext(Dispatchers.IO) {
+            PageNumbering(MediaStoreOutput(getApplication())).move(session.start, session.end, old, newNumber)
+        }
+        photo.number = newNumber
+        session.sortByNumber()
+        remapFailed(mapOf(old to newNumber))
+    }
+
+    /** Tukar nomor [a] dan [b]: kedua PDF di-rename atomik (rollback kalau gagal), lalu model. */
+    suspend fun swapNumbers(session: CaptureSession, a: CapturedPhoto, b: CapturedPhoto) {
+        val na = a.number
+        val nb = b.number
+        withContext(Dispatchers.IO) {
+            PageNumbering(MediaStoreOutput(getApplication())).swap(session.start, session.end, na, nb)
+        }
+        a.number = nb
+        b.number = na
+        session.sortByNumber()
+        remapFailed(mapOf(na to nb, nb to na))
+    }
+
+    /**
+     * Kosongkan nomor [n] untuk halaman baru: semua nomor >= [n] naik 1 (rename dari belakang ke depan),
+     * rentang bertambah 1 (folder `AKL start-end` ikut pindah). Atomik; gagal = tidak ada yang berubah.
+     */
+    suspend fun insertSlot(session: CaptureSession, n: Int) {
+        val shifted = session.photos.filter { it.number >= n }
+        val oldEnd = session.end
+        val newEnd = oldEnd + 1
+        withContext(Dispatchers.IO) {
+            PageNumbering(MediaStoreOutput(getApplication()))
+                .shiftUp(session.start, oldEnd, shifted.map { it.number }, newEnd)
+        }
+        shifted.forEach { it.number += 1 }
+        session.extendEnd(newEnd)
+        session.sortByNumber()
+        remapFailed(shifted.associate { (it.number - 1) to it.number })
+        syncRange(session)
+    }
+
+    /**
+     * Tambah foto baru [path] di nomor [number] (kosong). Kalau [number] di luar rentang, rentang
+     * diperluas dulu (folder pindah). Kalau pemrosesan gagal, file baru dibuang dan exception dilempar
+     * (rentang yang sudah diperluas tetap; tidak ada PDF yang hilang).
+     */
+    suspend fun addPhoto(session: CaptureSession, number: Int, path: String) {
+        require(session.photoWithNumber(number) == null) { "Nomor $number sudah dipakai" }
+        val photo = CapturedPhoto(number, path)
+        try {
+            withContext(Dispatchers.IO) {
+                if (number > session.end) {
+                    PageNumbering(MediaStoreOutput(getApplication())).extend(session.start, session.end, number)
+                    session.extendEnd(number)
+                }
+                BatchProcessor(getApplication()).processSinglePhoto(photo, null, session.start, session.end)
+            }
+        } catch (e: Throwable) {
+            File(path).delete()
+            photo.thumbPath?.let { File(it).delete() }
+            syncRange(session)
+            throw e
+        }
+        session.insertPhoto(photo)
+        syncRange(session)
+        val uri = com.blitar.scanfast.storage.MediaStoreOutput.relativePath(session.start, session.end)
+        result?.let { r ->
+            result = r.copy(successCount = r.successCount + 1, relativePath = uri)
+        }
     }
 
     fun reset() {
