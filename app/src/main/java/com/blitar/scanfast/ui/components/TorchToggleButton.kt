@@ -2,8 +2,7 @@ package com.blitar.scanfast.ui.components
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,15 +20,12 @@ fun TorchToggleButton(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    IconButton(
+    // Tonal (secondaryContainer) seperti tombol kamera lain; status ditunjukkan oleh ikon on/off.
+    FilledTonalIconButton(
         onClick = onToggle,
         modifier = modifier
-            .size(48.dp)
+            .size(52.dp)
             .semantics { contentDescription = if (torchOn) "Torch menyala" else "Torch mati" },
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = Color.Black.copy(alpha = 0.5f),
-            contentColor = Color.White,
-        ),
     ) {
         Icon(
             imageVector = if (torchOn) FlashOnIcon else FlashOffIcon,

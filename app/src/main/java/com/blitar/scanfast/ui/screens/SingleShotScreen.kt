@@ -43,7 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.blitar.scanfast.camera.CameraXController
 import com.blitar.scanfast.camera.VolumeShutterHandler
+import com.blitar.scanfast.ui.components.CameraInfoPill
 import com.blitar.scanfast.ui.components.CameraPreviewLayer
+import com.blitar.scanfast.ui.components.CameraSideButton
+import com.blitar.scanfast.ui.components.ShutterButton
 import com.blitar.scanfast.ui.components.TorchToggleButton
 import com.blitar.scanfast.ui.components.rememberHaptics
 import kotlinx.coroutines.CancellationException
@@ -159,18 +162,10 @@ fun SingleShotScreen(
             }
         }
 
-        Surface(
-            color = Color.Black.copy(alpha = 0.5f),
-            shape = MaterialTheme.shapes.medium,
+        CameraInfoPill(
+            title = title,
             modifier = Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 24.dp),
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-        }
+        )
 
         Row(
             Modifier
@@ -181,20 +176,16 @@ fun SingleShotScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
+            CameraSideButton(
+                text = "Batal",
                 onClick = {
                     haptics.tick()
                     onClose()
                 },
                 enabled = !busy,
-            ) { Text("Batal") }
-            Button(
-                onClick = { doCapture() },
-                enabled = hasPermission && !busy,
-                shape = CircleShape,
-                modifier = Modifier.size(72.dp),
-            ) {}
-            Spacer(Modifier.width(72.dp)) // penyeimbang agar shutter tepat di tengah
+            )
+            ShutterButton(onClick = { doCapture() }, enabled = hasPermission && !busy)
+            Spacer(Modifier.width(96.dp)) // penyeimbang selebar tombol kiri agar shutter tepat di tengah
         }
 
         if (busy) {

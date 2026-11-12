@@ -43,7 +43,11 @@ import androidx.core.content.ContextCompat
 import com.blitar.scanfast.camera.CameraXController
 import com.blitar.scanfast.camera.VolumeShutterHandler
 import com.blitar.scanfast.model.CaptureViewModel
+import com.blitar.scanfast.ui.components.CameraInfoPill
 import com.blitar.scanfast.ui.components.CameraPreviewLayer
+import com.blitar.scanfast.ui.components.CameraPrimaryButton
+import com.blitar.scanfast.ui.components.CameraSideButton
+import com.blitar.scanfast.ui.components.ShutterButton
 import com.blitar.scanfast.ui.components.TorchToggleButton
 import com.blitar.scanfast.ui.components.rememberHaptics
 
@@ -153,28 +157,11 @@ fun CaptureScreen(
         }
 
         // Counter atas
-        Surface(
-            color = Color.Black.copy(alpha = 0.5f),
-            shape = MaterialTheme.shapes.medium,
+        CameraInfoPill(
+            title = if (session.isFinished) "Selesai / ${session.end}" else "${session.current} / ${session.end}",
+            subtitle = "Foto: ${session.photoCount}",
             modifier = Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 24.dp),
-        ) {
-            Column(
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = if (session.isFinished) "Selesai / ${session.end}"
-                    else "${session.current} / ${session.end}",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = Color.White,
-                )
-                Text(
-                    text = "Foto: ${session.photoCount}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White,
-                )
-            }
-        }
+        )
 
         // Kontrol bawah
         Row(
@@ -186,29 +173,26 @@ fun CaptureScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
+            CameraSideButton(
+                text = "Skip",
                 onClick = {
                     haptics.tick()
                     session.skip()
                 },
                 enabled = !session.isFinished && !busy,
-            ) { Text("Skip") }
+            )
 
             // Shutter sentuh sebagai cadangan tombol volume
-            Button(
-                onClick = { doCapture() },
-                enabled = hasPermission && !session.isFinished,
-                shape = CircleShape,
-                modifier = Modifier.size(72.dp),
-            ) {}
+            ShutterButton(onClick = { doCapture() }, enabled = hasPermission && !session.isFinished)
 
-            Button(
+            CameraPrimaryButton(
+                text = "Run",
                 onClick = {
                     haptics.tick()
                     onRun()
                 },
                 enabled = session.photoCount >= 1,
-            ) { Text("Run") }
+            )
         }
     }
 }

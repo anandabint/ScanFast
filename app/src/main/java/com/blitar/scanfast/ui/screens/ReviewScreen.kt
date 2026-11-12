@@ -27,13 +27,20 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -159,14 +166,21 @@ fun ReviewScreen(
         modifier = modifier.fillMaxSize(),
         floatingActionButton = {
             if (!pending && !applying && !inserting) {
-                ExtendedFloatingActionButton(
+                // FAB bulat berikon "+"; warna primary sama dengan tombol Selesai di bawahnya.
+                FloatingActionButton(
                     onClick = {
                         haptics.tick()
                         showAdd = true
                     },
-                    // Di atas tombol Selesai (56dp + padding 24dp), di pojok kanan bawah.
-                    modifier = Modifier.padding(bottom = 88.dp),
-                ) { Text("+ Tambah foto") }
+                    shape = CircleShape,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    // Di atas tombol Selesai (56dp + padding 24dp); end 8dp + margin FAB 16dp = sejajar
+                    // dengan tepi kanan Selesai (padding 24dp).
+                    modifier = Modifier
+                        .padding(bottom = 88.dp, end = 8.dp)
+                        .semantics { contentDescription = "Tambah foto" },
+                ) { Icon(PlusIcon, contentDescription = null) }
             }
         },
     ) { innerPadding ->
@@ -535,3 +549,15 @@ private fun AddPhotoDialog(
         },
     )
 }
+
+
+// Ikon "+" Material (add), digambar manual karena material-icons tidak ada di dependency.
+private val PlusIcon: ImageVector = ImageVector.Builder(
+    name = "Add", defaultWidth = 24.dp, defaultHeight = 24.dp,
+    viewportWidth = 24f, viewportHeight = 24f,
+).path(fill = SolidColor(androidx.compose.ui.graphics.Color.Black)) {
+    moveTo(19f, 13f); horizontalLineToRelative(-6f); verticalLineToRelative(6f)
+    horizontalLineToRelative(-2f); verticalLineToRelative(-6f); horizontalLineTo(5f)
+    verticalLineToRelative(-2f); horizontalLineToRelative(6f); verticalLineTo(5f)
+    horizontalLineToRelative(2f); verticalLineToRelative(6f); horizontalLineToRelative(6f); close()
+}.build()
