@@ -1,7 +1,6 @@
 package com.blitar.scanfast.processing
 
 import android.util.Log
-import com.blitar.scanfast.model.MARGIN_PERCENT
 import org.opencv.core.Mat
 import org.opencv.core.MatOfPoint
 import org.opencv.core.MatOfPoint2f
@@ -18,6 +17,12 @@ object DocumentDetector {
     private const val WORK_LONG_SIDE = 800.0
     private const val MAX_AREA_RATIO = 0.95
     private const val MIN_AREA_OF_GUIDE = 0.25
+
+    /**
+     * Margin referensi untuk ambang area minimum. Sengaja TERPISAH dari margin guide-frame di kamera
+     * (yang kini 0) supaya perilaku deteksi tidak berubah ketika tampilan guide diubah.
+     */
+    private const val REFERENCE_MARGIN = 0.03
     private val CANNY_ATTEMPTS = listOf(50.0 to 150.0, 25.0 to 75.0)
 
     /** @return 4 titik (piksel foto sumber) urut TL, TR, BR, BL; null kalau tidak ada yang layak. */
@@ -31,8 +36,10 @@ object DocumentDetector {
             Imgproc.GaussianBlur(gray, gray, Size(5.0, 5.0), 0.0)
 
             val imgArea = small.cols().toDouble() * small.rows()
-            // Referensi: luas guide-frame; terima >= 0.25x luas guide s/d <= 0.95 luas gambar.
-            val guideArea = imgArea * (1 - 2 * MARGIN_PERCENT) * (1 - 2 * MARGIN_PERCENT)
+            // Referensi: area dengan margin tetap [REFERENCE_MARGIN] (BUKAN guide-frame yang tampil di kamera),
+            // sehingga ambang deteksi tidak berubah; dokumen di luar kotak guide tetap diterima.
+            // Terima >= 0.25x luas referensi s/d <= 0.95 luas gambar.
+            val guideArea = imgArea * (1 - 2 * REFERENCE_MARGIN) * (1 - 2 * REFERENCE_MARGIN)
             val minArea = guideArea * MIN_AREA_OF_GUIDE
             val maxArea = imgArea * MAX_AREA_RATIO
 

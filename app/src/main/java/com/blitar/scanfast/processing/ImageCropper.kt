@@ -2,6 +2,7 @@ package com.blitar.scanfast.processing
 
 import android.graphics.Bitmap
 import com.blitar.scanfast.model.MARGIN_PERCENT
+import com.blitar.scanfast.model.guideRect
 import com.blitar.scanfast.model.NormPoint
 import com.blitar.scanfast.model.QuadPoints
 import org.opencv.android.Utils
@@ -16,18 +17,25 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Crop dokumen: [autoQuad] menentukan 4 titik (deteksi kontur, fallback margin-persen),
+ * Crop dokumen: [autoQuad] menentukan 4 titik (deteksi kontur, fallback guide-frame berrasio tetap),
  * [warp] meluruskan area itu dengan perspective transform (aspect ratio mengikuti quad).
  * Dipisah agar quad bisa diganti manual di editor crop lalu diproses ulang.
  */
 object ImageCropper {
     private const val MIN_SIDE_PX = 32
 
-    /** Quad margin-persen (fallback). Menandai autoDetected=false. */
-    fun marginQuad(p: Float = MARGIN_PERCENT) = QuadPoints(
-        NormPoint(p, p), NormPoint(1 - p, p), NormPoint(1 - p, 1 - p), NormPoint(p, 1 - p),
-        autoDetected = false
-    )
+    /**
+     * Quad fallback = guide-frame berrasio tetap yang sama dengan overlay kamera ([guideRect]).
+     * [aspect] = lebar/tinggi foto sumber. Menandai autoDetected=false.
+     */
+    fun marginQuad(aspect: Float, p: Float = MARGIN_PERCENT): QuadPoints {
+        val g = guideRect(aspect, p)
+        return QuadPoints(
+            NormPoint(g.left, g.top), NormPoint(g.right, g.top),
+            NormPoint(g.right, g.bottom), NormPoint(g.left, g.bottom),
+            autoDetected = false,
+        )
+    }
 
     /** Quad otomatis untuk [src]: hasil deteksi kalau ada, kalau tidak margin-persen. Tidak melempar. */
     fun autoQuad(src: Bitmap): QuadPoints {
@@ -35,7 +43,7 @@ object ImageCropper {
             val detected = guardedOpenCv(TAG, "Deteksi dokumen", fallback = { null }) { detect(src) }
             if (detected != null) return detected
         }
-        return marginQuad()
+        return marginQuad(src.width.toFloat() / src.height)
     }
 
     /** Warp [src] ke persegi panjang dari [quad]. Tanpa OpenCV / error: crop bounding box quad. */
