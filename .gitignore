@@ -22,3 +22,6 @@ local.properties
 *.apk
 *.aab
 keystore.properties
+
+# APK rilis untuk dibagikan lewat GitHub
+!/release/ScanFast.apk
